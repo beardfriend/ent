@@ -24,7 +24,7 @@ import (
 type MetadataQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []metadata.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.Metadata
 	withUser     *UserQuery
@@ -61,7 +61,7 @@ func (mq *MetadataQuery) Unique(unique bool) *MetadataQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (mq *MetadataQuery) Order(o ...OrderFunc) *MetadataQuery {
+func (mq *MetadataQuery) Order(o ...metadata.OrderOption) *MetadataQuery {
 	mq.order = append(mq.order, o...)
 	return mq
 }
@@ -321,7 +321,7 @@ func (mq *MetadataQuery) Clone() *MetadataQuery {
 	return &MetadataQuery{
 		config:       mq.config,
 		ctx:          mq.ctx.Clone(),
-		order:        append([]OrderFunc{}, mq.order...),
+		order:        append([]metadata.OrderOption{}, mq.order...),
 		inters:       append([]Interceptor{}, mq.inters...),
 		predicates:   append([]predicate.Metadata{}, mq.predicates...),
 		withUser:     mq.withUser.Clone(),
@@ -530,7 +530,7 @@ func (mq *MetadataQuery) loadChildren(ctx context.Context, query *MetadataQuery,
 		}
 	}
 	query.Where(predicate.Metadata(func(s *sql.Selector) {
-		s.Where(sql.InValues(metadata.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(metadata.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

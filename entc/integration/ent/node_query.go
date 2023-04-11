@@ -24,7 +24,7 @@ import (
 type NodeQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []node.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Node
 	withPrev   *NodeQuery
@@ -62,7 +62,7 @@ func (nq *NodeQuery) Unique(unique bool) *NodeQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (nq *NodeQuery) Order(o ...OrderFunc) *NodeQuery {
+func (nq *NodeQuery) Order(o ...node.OrderOption) *NodeQuery {
 	nq.order = append(nq.order, o...)
 	return nq
 }
@@ -300,7 +300,7 @@ func (nq *NodeQuery) Clone() *NodeQuery {
 	return &NodeQuery{
 		config:     nq.config,
 		ctx:        nq.ctx.Clone(),
-		order:      append([]OrderFunc{}, nq.order...),
+		order:      append([]node.OrderOption{}, nq.order...),
 		inters:     append([]Interceptor{}, nq.inters...),
 		predicates: append([]predicate.Node{}, nq.predicates...),
 		withPrev:   nq.withPrev.Clone(),
@@ -500,7 +500,7 @@ func (nq *NodeQuery) loadNext(ctx context.Context, query *NodeQuery, nodes []*No
 	}
 	query.withFKs = true
 	query.Where(predicate.Node(func(s *sql.Selector) {
-		s.Where(sql.InValues(node.NextColumn, fks...))
+		s.Where(sql.InValues(s.C(node.NextColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

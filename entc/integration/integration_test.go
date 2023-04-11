@@ -167,6 +167,7 @@ var (
 		ExtValueScan,
 		OrderByEdgeCount,
 		OrderByEdgeTerms,
+		OrderByFluent,
 	}
 )
 
@@ -2375,6 +2376,186 @@ func ExtValueScan(t *testing.T, client *ent.Client) {
 	require.False(t, client.ExValueScan.Query().Where(exvaluescan.CustomHasSuffix("io")).ExistX(ctx))
 }
 
+func OrderByFluent(t *testing.T, client *ent.Client) {
+	ctx := context.Background()
+	users := client.User.CreateBulk(
+		client.User.Create().SetName("a").SetAge(1),
+		client.User.Create().SetName("b").SetAge(2),
+		client.User.Create().SetName("c").SetAge(3),
+		client.User.Create().SetName("d").SetAge(4),
+		client.User.Create().SetName("e").SetAge(5),
+	).SaveX(ctx)
+	pets := client.Pet.CreateBulk(
+		client.Pet.Create().SetName("aa").SetOwner(users[1]).SetAge(2),
+		client.Pet.Create().SetName("ab").SetOwner(users[1]).SetAge(2),
+		client.Pet.Create().SetName("ac").SetOwner(users[0]).SetAge(1),
+		client.Pet.Create().SetName("ba").SetOwner(users[0]).SetAge(1),
+		client.Pet.Create().SetName("bb").SetOwner(users[0]).SetAge(1),
+		client.Pet.Create().SetName("ca").SetOwner(users[2]).SetAge(10),
+		client.Pet.Create().SetName("d"),
+		client.Pet.Create().SetName("e"),
+	).SaveX(ctx)
+
+	t.Run("M2O", func(t *testing.T) {
+		ids := client.Pet.Query().
+			Order(
+				pet.ByOwnerField(user.FieldName),
+				pet.ByID(),
+			).
+			IDsX(ctx)
+		require.Equal(t, []int{pets[6].ID, pets[7].ID, pets[2].ID, pets[3].ID, pets[4].ID, pets[0].ID, pets[1].ID, pets[5].ID}, ids)
+
+		ids = client.Pet.Query().
+			Order(
+				pet.ByOwnerField(user.FieldName, sql.OrderDesc()),
+				pet.ByID(sql.OrderDesc()),
+			).
+			IDsX(ctx)
+		require.Equal(t, []int{pets[5].ID, pets[1].ID, pets[0].ID, pets[4].ID, pets[3].ID, pets[2].ID, pets[7].ID, pets[6].ID}, ids)
+	})
+
+	t.Run("M2O/SelectedOwner", func(t *testing.T) {
+		const as = "owner_name"
+		query := client.Pet.Query().
+			Order(
+				pet.ByOwnerField(
+					user.FieldName,
+					sql.OrderSelectAs(as),
+				),
+			)
+		// No owner.
+		for _, u := range query.Clone().Limit(2).AllX(ctx) {
+			name, err := u.Value(as)
+			require.NoError(t, err)
+			require.Nil(t, name)
+		}
+		// User "a".
+		for _, u := range query.Clone().Offset(2).Limit(3).AllX(ctx) {
+			name, err := u.Value(as)
+			require.NoError(t, err)
+			require.EqualValues(t, users[0].Name, name)
+		}
+		// User "b".
+		for _, u := range query.Clone().Offset(5).Limit(2).AllX(ctx) {
+			name, err := u.Value(as)
+			require.NoError(t, err)
+			require.EqualValues(t, users[1].Name, name)
+		}
+		// User "c".
+		name, err := query.Clone().Offset(7).OnlyX(ctx).Value(as)
+		require.NoError(t, err)
+		require.EqualValues(t, users[2].Name, name)
+	})
+
+	t.Run("O2M/Count", func(t *testing.T) {
+		ids := client.User.Query().
+			Order(
+				user.ByPetsCount(),
+				user.ByID(sql.OrderDesc()),
+			).
+			IDsX(ctx)
+		require.Equal(t, []int{users[4].ID, users[3].ID, users[2].ID, users[1].ID, users[0].ID}, ids)
+
+		ids = client.User.Query().
+			Order(
+				user.ByPetsCount(sql.OrderDesc()),
+				user.ByID(sql.OrderDesc()),
+			).
+			IDsX(ctx)
+		require.Equal(t, []int{users[0].ID, users[1].ID, users[2].ID, users[4].ID, users[3].ID}, ids)
+	})
+
+	t.Run("O2M/SelectedCount", func(t *testing.T) {
+		const as = "pets_count"
+		ordered := client.User.Query().
+			Order(
+				user.ByPetsCount(
+					sql.OrderSelectAs(as),
+				),
+				user.ByID(sql.OrderDesc()),
+			).
+			AllX(ctx)
+		for i, v := range []struct {
+			id    int
+			count ent.Value
+		}{
+			{users[4].ID, nil}, {users[3].ID, nil}, {users[2].ID, 1}, {users[1].ID, 2}, {users[0].ID, 3},
+		} {
+			require.Equal(t, v.id, ordered[i].ID)
+			c, err := ordered[i].Value(as)
+			require.NoError(t, err)
+			require.EqualValues(t, v.count, c)
+		}
+
+		ordered = client.User.Query().
+			Order(
+				user.ByPetsCount(
+					sql.OrderDesc(),
+					sql.OrderSelectAs(as),
+				),
+				user.ByID(),
+			).
+			AllX(ctx)
+		for i, v := range []struct {
+			id    int
+			count ent.Value
+		}{
+			{users[0].ID, 3}, {users[1].ID, 2}, {users[2].ID, 1}, {users[3].ID, nil}, {users[4].ID, nil},
+		} {
+			require.Equal(t, v.id, ordered[i].ID)
+			c, err := ordered[i].Value(as)
+			require.NoError(t, err)
+			require.EqualValues(t, v.count, c)
+		}
+	})
+
+	t.Run("O2M/Sum", func(t *testing.T) {
+		ordered := client.User.Query().
+			Order(
+				user.ByPets(
+					sql.OrderBySum(
+						pet.FieldAge,
+						sql.OrderDesc(),
+					),
+				),
+				user.ByID(),
+			).
+			AllX(ctx)
+		require.Equal(t,
+			[]int{users[2].ID, users[1].ID, users[0].ID, users[3].ID, users[4].ID},
+			[]int{ordered[0].ID, ordered[1].ID, ordered[2].ID, ordered[3].ID, ordered[4].ID},
+		)
+
+		ordered = client.User.Query().
+			Order(
+				user.ByPets(
+					sql.OrderBySum(
+						pet.FieldAge,
+						sql.OrderDesc(),
+						sql.OrderSelected(),
+					),
+				),
+				user.ByID(
+					sql.OrderDesc(),
+				),
+			).
+			AllX(ctx)
+		require.Equal(t,
+			[]int{users[2].ID, users[1].ID, users[0].ID, users[3].ID, users[4].ID},
+			[]int{ordered[0].ID, ordered[1].ID, ordered[2].ID, ordered[4].ID, ordered[3].ID},
+		)
+		s, err := ordered[0].Value("sum_age")
+		require.NoError(t, err)
+		require.EqualValues(t, 10, s)
+		s, err = ordered[1].Value("sum_age")
+		require.NoError(t, err)
+		require.EqualValues(t, 4, s)
+		s, err = ordered[2].Value("sum_age")
+		require.NoError(t, err)
+		require.EqualValues(t, 3, s)
+	})
+}
+
 // Testing the "low-level" behavior of the sqlgraph package.
 // This functionality may be extended to the generated fluent API.
 func OrderByEdgeCount(t *testing.T, client *ent.Client) {
@@ -2397,45 +2578,45 @@ func OrderByEdgeCount(t *testing.T, client *ent.Client) {
 	).SaveX(ctx)
 	// O2M edge.
 	for _, tt := range []struct {
-		opts []sqlgraph.OrderByOption
+		opts []sql.OrderTermOption
 		ids  []int
 	}{
-		{opts: []sqlgraph.OrderByOption{sqlgraph.OrderDesc()}, ids: []int{users[0].ID, users[1].ID, users[2].ID, users[3].ID}},
+		{opts: []sql.OrderTermOption{sql.OrderDesc()}, ids: []int{users[0].ID, users[1].ID, users[2].ID, users[3].ID}},
 		{ids: []int{users[3].ID, users[2].ID, users[1].ID, users[0].ID}},
 	} {
 		ids := client.User.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborsCount(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborsCount(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(user.Table, user.FieldID),
 						sqlgraph.To(pet.Table, pet.OwnerColumn),
 						sqlgraph.Edge(sqlgraph.O2M, false, pet.Table, pet.OwnerColumn),
 					),
 					tt.opts...,
-				))
+				)
 			}).
 			IDsX(ctx)
 		require.Equal(t, tt.ids, ids)
 	}
 	// M2O edge (true or false).
 	for _, tt := range []struct {
-		opts []sqlgraph.OrderByOption
+		opts []sql.OrderTermOption
 		ids  []int
 	}{
-		{opts: []sqlgraph.OrderByOption{sqlgraph.OrderDesc()}, ids: []int{pets[6].ID, pets[7].ID, pets[0].ID, pets[1].ID, pets[2].ID, pets[3].ID, pets[4].ID, pets[5].ID}},
+		{opts: []sql.OrderTermOption{sql.OrderDesc()}, ids: []int{pets[6].ID, pets[7].ID, pets[0].ID, pets[1].ID, pets[2].ID, pets[3].ID, pets[4].ID, pets[5].ID}},
 		{ids: []int{pets[0].ID, pets[1].ID, pets[2].ID, pets[3].ID, pets[4].ID, pets[5].ID, pets[6].ID, pets[7].ID}},
 	} {
 		ids := client.Pet.Query().
 			Order(
 				func(s *sql.Selector) {
-					sqlgraph.OrderByNeighborsCount(s, sqlgraph.NewOrderBy(
+					sqlgraph.OrderByNeighborsCount(s,
 						sqlgraph.NewStep(
 							sqlgraph.From(pet.Table, pet.OwnerColumn),
 							sqlgraph.To(user.Table, user.FieldID),
 							sqlgraph.Edge(sqlgraph.M2O, true, pet.Table, pet.OwnerColumn),
 						),
 						tt.opts...,
-					))
+					)
 				},
 				ent.Asc(pet.FieldID),
 			).
@@ -2452,44 +2633,44 @@ func OrderByEdgeCount(t *testing.T, client *ent.Client) {
 	).SaveX(ctx)
 	// M2M edge (inverse).
 	for _, tt := range []struct {
-		opts []sqlgraph.OrderByOption
+		opts []sql.OrderTermOption
 		ids  []int
 	}{
-		{opts: []sqlgraph.OrderByOption{sqlgraph.OrderDesc()}, ids: []int{groups[0].ID, groups[1].ID, groups[2].ID, groups[3].ID, groups[4].ID}},
+		{opts: []sql.OrderTermOption{sql.OrderDesc()}, ids: []int{groups[0].ID, groups[1].ID, groups[2].ID, groups[3].ID, groups[4].ID}},
 		{ids: []int{groups[4].ID, groups[3].ID, groups[2].ID, groups[1].ID, groups[0].ID}},
 	} {
 		ids := client.Group.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborsCount(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborsCount(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(group.Table, group.FieldID),
 						sqlgraph.To(user.Table, user.FieldID),
 						sqlgraph.Edge(sqlgraph.M2M, true, group.UsersTable, group.UsersPrimaryKey...),
 					),
 					tt.opts...,
-				))
+				)
 			}).
 			IDsX(ctx)
 		require.Equal(t, tt.ids, ids)
 	}
 	// M2M edge (assoc).
 	for _, tt := range []struct {
-		opts []sqlgraph.OrderByOption
+		opts []sql.OrderTermOption
 		ids  []int
 	}{
-		{opts: []sqlgraph.OrderByOption{sqlgraph.OrderDesc()}, ids: []int{users[0].ID, users[1].ID, users[2].ID, users[3].ID}},
+		{opts: []sql.OrderTermOption{sql.OrderDesc()}, ids: []int{users[0].ID, users[1].ID, users[2].ID, users[3].ID}},
 		{ids: []int{users[3].ID, users[2].ID, users[1].ID, users[0].ID}},
 	} {
 		ids := client.User.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborsCount(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborsCount(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(user.Table, user.FieldID),
 						sqlgraph.To(group.Table, group.FieldID),
 						sqlgraph.Edge(sqlgraph.M2M, false, user.GroupsTable, user.GroupsPrimaryKey...),
 					),
 					tt.opts...,
-				))
+				)
 			}).
 			IDsX(ctx)
 		require.Equal(t, tt.ids, ids)
@@ -2499,15 +2680,15 @@ func OrderByEdgeCount(t *testing.T, client *ent.Client) {
 		const as = "pets_count"
 		nodes := client.User.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborsCount(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborsCount(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(user.Table, user.FieldID),
 						sqlgraph.To(pet.Table, pet.FieldID),
 						sqlgraph.Edge(sqlgraph.O2M, false, pet.Table, pet.OwnerColumn),
 					),
-					sqlgraph.OrderByExprDesc(nil, as),
-					sqlgraph.OrderBySelected(),
-				))
+					sql.OrderDesc(),
+					sql.OrderSelectAs(as),
+				)
 			}).
 			AllX(ctx)
 		require.Equal(t, 4, len(nodes))
@@ -2546,28 +2727,28 @@ func OrderByEdgeTerms(t *testing.T, client *ent.Client) {
 	// M2O edge (inverse).
 	// Order pets by their owner's name.
 	for _, tt := range []struct {
-		opt sqlgraph.OrderByOption
+		opt sql.OrderTerm
 		ids []int
 	}{
 		{
-			opt: sqlgraph.OrderByColumn(user.FieldName),
+			opt: sql.OrderByField(user.FieldName),
 			ids: []int{pets[6].ID, pets[7].ID, pets[2].ID, pets[3].ID, pets[4].ID, pets[0].ID, pets[1].ID, pets[5].ID},
 		},
 		{
-			opt: sqlgraph.OrderByColumnDesc(user.FieldName),
+			opt: sql.OrderByField(user.FieldName, sql.OrderDesc()),
 			ids: []int{pets[5].ID, pets[0].ID, pets[1].ID, pets[2].ID, pets[3].ID, pets[4].ID, pets[6].ID, pets[7].ID},
 		},
 	} {
 		ids := client.Pet.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborTerms(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborTerms(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(pet.Table, pet.FieldID),
 						sqlgraph.To(user.Table, user.FieldID),
 						sqlgraph.Edge(sqlgraph.M2O, true, pet.Table, pet.OwnerColumn),
 					),
 					tt.opt,
-				))
+				)
 			}).
 			Order(ent.Asc(pet.FieldID)).
 			IDsX(ctx)
@@ -2575,28 +2756,28 @@ func OrderByEdgeTerms(t *testing.T, client *ent.Client) {
 	}
 	// O2M edge (aggregation).
 	for _, tt := range []struct {
-		opt sqlgraph.OrderByOption
+		opt sql.OrderTerm
 		ids []int
 	}{
 		{
-			opt: sqlgraph.OrderByExpr(sql.Expr("SUM(age)"), "sum_age"),
+			opt: sql.OrderBySum(user.FieldAge),
 			ids: []int{users[3].ID, users[0].ID, users[2].ID, users[1].ID},
 		},
 		{
-			opt: sqlgraph.OrderByExprDesc(sql.Expr("SUM(age)"), "sum_age"),
+			opt: sql.OrderBySum(user.FieldAge, sql.OrderDesc()),
 			ids: []int{users[1].ID, users[0].ID, users[2].ID, users[3].ID},
 		},
 	} {
 		ids := client.User.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborTerms(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborTerms(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(user.Table, user.FieldID),
 						sqlgraph.To(pet.Table, pet.FieldID),
 						sqlgraph.Edge(sqlgraph.O2M, false, pet.Table, pet.OwnerColumn),
 					),
 					tt.opt,
-				))
+				)
 			}).
 			Order(ent.Asc(user.FieldID)).
 			IDsX(ctx)
@@ -2613,38 +2794,33 @@ func OrderByEdgeTerms(t *testing.T, client *ent.Client) {
 	).ExecX(ctx)
 	// M2M edge.
 	for _, tt := range []struct {
-		opt sqlgraph.OrderByOption
+		opt sql.OrderTerm
 		ids []int
 	}{
 		{
-			opt: sqlgraph.OrderByExpr(
-				sql.ExprFunc(func(b *sql.Builder) {
-					b.S("SUM(").Ident(group.FieldMaxUsers).S(")")
-				}),
-				"sum_max_users",
+			opt: sql.OrderBySum(
+				group.FieldMaxUsers,
 			),
 			ids: []int{users[3].ID, users[2].ID, users[1].ID, users[0].ID},
 		},
 		{
-			opt: sqlgraph.OrderByExprDesc(
-				sql.ExprFunc(func(b *sql.Builder) {
-					b.S("SUM(").Ident(group.FieldMaxUsers).S(")")
-				}),
-				"sum_max_users",
+			opt: sql.OrderBySum(
+				group.FieldMaxUsers,
+				sql.OrderDesc(),
 			),
 			ids: []int{users[0].ID, users[1].ID, users[2].ID, users[3].ID},
 		},
 	} {
 		ids := client.User.Query().
 			Order(func(s *sql.Selector) {
-				sqlgraph.OrderByNeighborTerms(s, sqlgraph.NewOrderBy(
+				sqlgraph.OrderByNeighborTerms(s,
 					sqlgraph.NewStep(
 						sqlgraph.From(user.Table, user.FieldID),
 						sqlgraph.To(group.Table, group.FieldID),
 						sqlgraph.Edge(sqlgraph.M2M, false, user.GroupsTable, user.GroupsPrimaryKey...),
 					),
 					tt.opt,
-				))
+				)
 			}).
 			IDsX(ctx)
 		require.Equal(t, tt.ids, ids)

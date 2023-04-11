@@ -27,7 +27,7 @@ import (
 type FileQuery struct {
 	config
 	ctx            *QueryContext
-	order          []OrderFunc
+	order          []file.OrderOption
 	inters         []Interceptor
 	predicates     []predicate.File
 	withOwner      *UserQuery
@@ -67,7 +67,7 @@ func (fq *FileQuery) Unique(unique bool) *FileQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (fq *FileQuery) Order(o ...OrderFunc) *FileQuery {
+func (fq *FileQuery) Order(o ...file.OrderOption) *FileQuery {
 	fq.order = append(fq.order, o...)
 	return fq
 }
@@ -327,7 +327,7 @@ func (fq *FileQuery) Clone() *FileQuery {
 	return &FileQuery{
 		config:     fq.config,
 		ctx:        fq.ctx.Clone(),
-		order:      append([]OrderFunc{}, fq.order...),
+		order:      append([]file.OrderOption{}, fq.order...),
 		inters:     append([]Interceptor{}, fq.inters...),
 		predicates: append([]predicate.File{}, fq.predicates...),
 		withOwner:  fq.withOwner.Clone(),
@@ -589,7 +589,7 @@ func (fq *FileQuery) loadField(ctx context.Context, query *FieldTypeQuery, nodes
 	}
 	query.withFKs = true
 	query.Where(predicate.FieldType(func(s *sql.Selector) {
-		s.Where(sql.InValues(file.FieldColumn, fks...))
+		s.Where(sql.InValues(s.C(file.FieldColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

@@ -27,7 +27,7 @@ import (
 type GroupQuery struct {
 	config
 	ctx             *QueryContext
-	order           []OrderFunc
+	order           []group.OrderOption
 	inters          []Interceptor
 	predicates      []predicate.Group
 	withUsers       *UserQuery
@@ -65,7 +65,7 @@ func (gq *GroupQuery) Unique(unique bool) *GroupQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (gq *GroupQuery) Order(o ...OrderFunc) *GroupQuery {
+func (gq *GroupQuery) Order(o ...group.OrderOption) *GroupQuery {
 	gq.order = append(gq.order, o...)
 	return gq
 }
@@ -347,7 +347,7 @@ func (gq *GroupQuery) Clone() *GroupQuery {
 	return &GroupQuery{
 		config:          gq.config,
 		ctx:             gq.ctx.Clone(),
-		order:           append([]OrderFunc{}, gq.order...),
+		order:           append([]group.OrderOption{}, gq.order...),
 		inters:          append([]Interceptor{}, gq.inters...),
 		predicates:      append([]predicate.Group{}, gq.predicates...),
 		withUsers:       gq.withUsers.Clone(),
@@ -671,7 +671,7 @@ func (gq *GroupQuery) loadJoinedUsers(ctx context.Context, query *UserGroupQuery
 		}
 	}
 	query.Where(predicate.UserGroup(func(s *sql.Selector) {
-		s.Where(sql.InValues(group.JoinedUsersColumn, fks...))
+		s.Where(sql.InValues(s.C(group.JoinedUsersColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -698,7 +698,7 @@ func (gq *GroupQuery) loadGroupTags(ctx context.Context, query *GroupTagQuery, n
 		}
 	}
 	query.Where(predicate.GroupTag(func(s *sql.Selector) {
-		s.Where(sql.InValues(group.GroupTagsColumn, fks...))
+		s.Where(sql.InValues(s.C(group.GroupTagsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

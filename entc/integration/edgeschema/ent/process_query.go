@@ -25,7 +25,7 @@ import (
 type ProcessQuery struct {
 	config
 	ctx               *QueryContext
-	order             []OrderFunc
+	order             []process.OrderOption
 	inters            []Interceptor
 	predicates        []predicate.Process
 	withFiles         *FileQuery
@@ -61,7 +61,7 @@ func (pq *ProcessQuery) Unique(unique bool) *ProcessQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (pq *ProcessQuery) Order(o ...OrderFunc) *ProcessQuery {
+func (pq *ProcessQuery) Order(o ...process.OrderOption) *ProcessQuery {
 	pq.order = append(pq.order, o...)
 	return pq
 }
@@ -299,7 +299,7 @@ func (pq *ProcessQuery) Clone() *ProcessQuery {
 	return &ProcessQuery{
 		config:            pq.config,
 		ctx:               pq.ctx.Clone(),
-		order:             append([]OrderFunc{}, pq.order...),
+		order:             append([]process.OrderOption{}, pq.order...),
 		inters:            append([]Interceptor{}, pq.inters...),
 		predicates:        append([]predicate.Process{}, pq.predicates...),
 		withFiles:         pq.withFiles.Clone(),
@@ -500,7 +500,7 @@ func (pq *ProcessQuery) loadAttachedFiles(ctx context.Context, query *AttachedFi
 		}
 	}
 	query.Where(predicate.AttachedFile(func(s *sql.Selector) {
-		s.Where(sql.InValues(process.AttachedFilesColumn, fks...))
+		s.Where(sql.InValues(s.C(process.AttachedFilesColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

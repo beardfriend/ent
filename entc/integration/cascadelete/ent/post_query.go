@@ -25,7 +25,7 @@ import (
 type PostQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []post.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.Post
 	withAuthor   *UserQuery
@@ -61,7 +61,7 @@ func (pq *PostQuery) Unique(unique bool) *PostQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (pq *PostQuery) Order(o ...OrderFunc) *PostQuery {
+func (pq *PostQuery) Order(o ...post.OrderOption) *PostQuery {
 	pq.order = append(pq.order, o...)
 	return pq
 }
@@ -299,7 +299,7 @@ func (pq *PostQuery) Clone() *PostQuery {
 	return &PostQuery{
 		config:       pq.config,
 		ctx:          pq.ctx.Clone(),
-		order:        append([]OrderFunc{}, pq.order...),
+		order:        append([]post.OrderOption{}, pq.order...),
 		inters:       append([]Interceptor{}, pq.inters...),
 		predicates:   append([]predicate.Post{}, pq.predicates...),
 		withAuthor:   pq.withAuthor.Clone(),
@@ -489,7 +489,7 @@ func (pq *PostQuery) loadComments(ctx context.Context, query *CommentQuery, node
 		}
 	}
 	query.Where(predicate.Comment(func(s *sql.Selector) {
-		s.Where(sql.InValues(post.CommentsColumn, fks...))
+		s.Where(sql.InValues(s.C(post.CommentsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

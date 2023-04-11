@@ -25,7 +25,7 @@ import (
 type UserQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []user.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.User
 	withGroups   *GroupQuery
@@ -64,7 +64,7 @@ func (uq *UserQuery) Unique(unique bool) *UserQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
+func (uq *UserQuery) Order(o ...user.OrderOption) *UserQuery {
 	uq.order = append(uq.order, o...)
 	return uq
 }
@@ -346,7 +346,7 @@ func (uq *UserQuery) Clone() *UserQuery {
 	return &UserQuery{
 		config:       uq.config,
 		ctx:          uq.ctx.Clone(),
-		order:        append([]OrderFunc{}, uq.order...),
+		order:        append([]user.OrderOption{}, uq.order...),
 		inters:       append([]Interceptor{}, uq.inters...),
 		predicates:   append([]predicate.User{}, uq.predicates...),
 		withGroups:   uq.withGroups.Clone(),
@@ -626,7 +626,7 @@ func (uq *UserQuery) loadChildren(ctx context.Context, query *UserQuery, nodes [
 	}
 	query.withFKs = true
 	query.Where(predicate.User(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(user.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -657,7 +657,7 @@ func (uq *UserQuery) loadPets(ctx context.Context, query *PetQuery, nodes []*Use
 	}
 	query.withFKs = true
 	query.Where(predicate.Pet(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.PetsColumn, fks...))
+		s.Where(sql.InValues(s.C(user.PetsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

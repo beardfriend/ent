@@ -27,7 +27,7 @@ import (
 type GroupQuery struct {
 	config
 	ctx              *QueryContext
-	order            []OrderFunc
+	order            []group.OrderOption
 	inters           []Interceptor
 	predicates       []predicate.Group
 	withFiles        *FileQuery
@@ -70,7 +70,7 @@ func (gq *GroupQuery) Unique(unique bool) *GroupQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (gq *GroupQuery) Order(o ...OrderFunc) *GroupQuery {
+func (gq *GroupQuery) Order(o ...group.OrderOption) *GroupQuery {
 	gq.order = append(gq.order, o...)
 	return gq
 }
@@ -352,7 +352,7 @@ func (gq *GroupQuery) Clone() *GroupQuery {
 	return &GroupQuery{
 		config:      gq.config,
 		ctx:         gq.ctx.Clone(),
-		order:       append([]OrderFunc{}, gq.order...),
+		order:       append([]group.OrderOption{}, gq.order...),
 		inters:      append([]Interceptor{}, gq.inters...),
 		predicates:  append([]predicate.Group{}, gq.predicates...),
 		withFiles:   gq.withFiles.Clone(),
@@ -585,7 +585,7 @@ func (gq *GroupQuery) loadFiles(ctx context.Context, query *FileQuery, nodes []*
 	}
 	query.withFKs = true
 	query.Where(predicate.File(func(s *sql.Selector) {
-		s.Where(sql.InValues(group.FilesColumn, fks...))
+		s.Where(sql.InValues(s.C(group.FilesColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -616,7 +616,7 @@ func (gq *GroupQuery) loadBlocked(ctx context.Context, query *UserQuery, nodes [
 	}
 	query.withFKs = true
 	query.Where(predicate.User(func(s *sql.Selector) {
-		s.Where(sql.InValues(group.BlockedColumn, fks...))
+		s.Where(sql.InValues(s.C(group.BlockedColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

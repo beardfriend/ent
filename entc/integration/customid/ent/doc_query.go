@@ -24,7 +24,7 @@ import (
 type DocQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []doc.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.Doc
 	withParent   *DocQuery
@@ -62,7 +62,7 @@ func (dq *DocQuery) Unique(unique bool) *DocQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (dq *DocQuery) Order(o ...OrderFunc) *DocQuery {
+func (dq *DocQuery) Order(o ...doc.OrderOption) *DocQuery {
 	dq.order = append(dq.order, o...)
 	return dq
 }
@@ -322,7 +322,7 @@ func (dq *DocQuery) Clone() *DocQuery {
 	return &DocQuery{
 		config:       dq.config,
 		ctx:          dq.ctx.Clone(),
-		order:        append([]OrderFunc{}, dq.order...),
+		order:        append([]doc.OrderOption{}, dq.order...),
 		inters:       append([]Interceptor{}, dq.inters...),
 		predicates:   append([]predicate.Doc{}, dq.predicates...),
 		withParent:   dq.withParent.Clone(),
@@ -543,7 +543,7 @@ func (dq *DocQuery) loadChildren(ctx context.Context, query *DocQuery, nodes []*
 	}
 	query.withFKs = true
 	query.Where(predicate.Doc(func(s *sql.Selector) {
-		s.Where(sql.InValues(doc.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(doc.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

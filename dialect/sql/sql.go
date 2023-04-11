@@ -6,6 +6,7 @@ package sql
 
 import (
 	"fmt"
+	"strings"
 )
 
 // The following helpers exist to simplify the way raw predicates
@@ -186,3 +187,148 @@ func NewColumnCheck(checks map[string]func(string) bool) ColumnCheck {
 		return nil
 	}
 }
+
+type (
+	// OrderFieldTerm represents an ordering by a field.
+	OrderFieldTerm struct {
+		OrderTermOptions
+		Field string // Field name.
+	}
+	// OrderExprTerm represents an ordering by an expression.
+	OrderExprTerm struct {
+		OrderTermOptions
+		Expr func(*Selector) Querier // Expression.
+	}
+	// OrderTerm represents an ordering by a term.
+	OrderTerm interface {
+		term()
+	}
+	// OrderTermOptions represents options for ordering by a term.
+	OrderTermOptions struct {
+		Desc       bool   // Whether to sort in descending order.
+		As         string // Optional alias.
+		Selected   bool   // Whether the term should be selected.
+		NullsFirst bool   // Whether to sort nulls first.
+		NullsLast  bool   // Whether to sort nulls last.
+	}
+	// OrderTermOption is an option for ordering by a term.
+	OrderTermOption func(*OrderTermOptions)
+)
+
+// OrderDesc returns an option to sort in descending order.
+func OrderDesc() OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.Desc = true
+	}
+}
+
+// OrderAsc returns an option to sort in ascending order.
+func OrderAsc() OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.Desc = false
+	}
+}
+
+// OrderAs returns an option to set the alias for the ordering.
+func OrderAs(as string) OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.As = as
+	}
+}
+
+// OrderSelected returns an option to select the ordering term.
+func OrderSelected() OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.Selected = true
+	}
+}
+
+// OrderSelectAs returns an option to set and select the alias for the ordering.
+func OrderSelectAs(as string) OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.As = as
+		o.Selected = true
+	}
+}
+
+// OrderNullsFirst returns an option to sort nulls first.
+func OrderNullsFirst() OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.NullsFirst = true
+	}
+}
+
+// OrderNullsLast returns an option to sort nulls last.
+func OrderNullsLast() OrderTermOption {
+	return func(o *OrderTermOptions) {
+		o.NullsLast = true
+	}
+}
+
+// NewOrderTermOptions returns a new OrderTermOptions from the given options.
+func NewOrderTermOptions(opts ...OrderTermOption) *OrderTermOptions {
+	o := &OrderTermOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+// OrderByField returns an ordering by the given field.
+func OrderByField(field string, opts ...OrderTermOption) *OrderFieldTerm {
+	return &OrderFieldTerm{Field: field, OrderTermOptions: *NewOrderTermOptions(opts...)}
+}
+
+// OrderBySum returns an ordering by the sum of the given field.
+func OrderBySum(field string, opts ...OrderTermOption) *OrderExprTerm {
+	return orderByAgg("SUM", field, opts...)
+}
+
+// OrderByCount returns an ordering by the count of the given field.
+func OrderByCount(field string, opts ...OrderTermOption) *OrderExprTerm {
+	return orderByAgg("COUNT", field, opts...)
+}
+
+// orderByAgg returns an ordering by the aggregation of the given field.
+func orderByAgg(fn, field string, opts ...OrderTermOption) *OrderExprTerm {
+	return &OrderExprTerm{
+		OrderTermOptions: *NewOrderTermOptions(
+			append(
+				// Default alias is "<func>_<field>".
+				[]OrderTermOption{OrderAs(fmt.Sprintf("%s_%s", strings.ToLower(fn), field))},
+				opts...,
+			)...,
+		),
+		Expr: func(s *Selector) Querier {
+			var c string
+			switch {
+			case field == "*", isFunc(field):
+				c = field
+			default:
+				c = s.C(field)
+			}
+			return Raw(fmt.Sprintf("%s(%s)", fn, c))
+		},
+	}
+}
+
+// ToFunc returns a function that sets the ordering on the given selector.
+// This is used by the generated code.
+func (f *OrderFieldTerm) ToFunc() func(*Selector) {
+	return func(s *Selector) {
+		s.OrderExprFunc(func(b *Builder) {
+			b.WriteString(s.C(f.Field))
+			if f.Desc {
+				b.WriteString(" DESC")
+			}
+			if f.NullsFirst {
+				b.WriteString(" NULLS FIRST")
+			} else if f.NullsLast {
+				b.WriteString(" NULLS LAST")
+			}
+		})
+	}
+}
+
+func (OrderFieldTerm) term() {}
+func (OrderExprTerm) term()  {}

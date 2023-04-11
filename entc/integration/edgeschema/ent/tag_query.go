@@ -27,7 +27,7 @@ import (
 type TagQuery struct {
 	config
 	ctx           *QueryContext
-	order         []OrderFunc
+	order         []tag.OrderOption
 	inters        []Interceptor
 	predicates    []predicate.Tag
 	withTweets    *TweetQuery
@@ -65,7 +65,7 @@ func (tq *TagQuery) Unique(unique bool) *TagQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (tq *TagQuery) Order(o ...OrderFunc) *TagQuery {
+func (tq *TagQuery) Order(o ...tag.OrderOption) *TagQuery {
 	tq.order = append(tq.order, o...)
 	return tq
 }
@@ -347,7 +347,7 @@ func (tq *TagQuery) Clone() *TagQuery {
 	return &TagQuery{
 		config:        tq.config,
 		ctx:           tq.ctx.Clone(),
-		order:         append([]OrderFunc{}, tq.order...),
+		order:         append([]tag.OrderOption{}, tq.order...),
 		inters:        append([]Interceptor{}, tq.inters...),
 		predicates:    append([]predicate.Tag{}, tq.predicates...),
 		withTweets:    tq.withTweets.Clone(),
@@ -671,7 +671,7 @@ func (tq *TagQuery) loadTweetTags(ctx context.Context, query *TweetTagQuery, nod
 		}
 	}
 	query.Where(predicate.TweetTag(func(s *sql.Selector) {
-		s.Where(sql.InValues(tag.TweetTagsColumn, fks...))
+		s.Where(sql.InValues(s.C(tag.TweetTagsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -698,7 +698,7 @@ func (tq *TagQuery) loadGroupTags(ctx context.Context, query *GroupTagQuery, nod
 		}
 	}
 	query.Where(predicate.GroupTag(func(s *sql.Selector) {
-		s.Where(sql.InValues(tag.GroupTagsColumn, fks...))
+		s.Where(sql.InValues(s.C(tag.GroupTagsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

@@ -24,7 +24,7 @@ import (
 type UserQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []user.OrderOption
 	inters     []Interceptor
 	predicates []predicate.User
 	withPosts  *PostQuery
@@ -59,7 +59,7 @@ func (uq *UserQuery) Unique(unique bool) *UserQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
+func (uq *UserQuery) Order(o ...user.OrderOption) *UserQuery {
 	uq.order = append(uq.order, o...)
 	return uq
 }
@@ -275,7 +275,7 @@ func (uq *UserQuery) Clone() *UserQuery {
 	return &UserQuery{
 		config:     uq.config,
 		ctx:        uq.ctx.Clone(),
-		order:      append([]OrderFunc{}, uq.order...),
+		order:      append([]user.OrderOption{}, uq.order...),
 		inters:     append([]Interceptor{}, uq.inters...),
 		predicates: append([]predicate.User{}, uq.predicates...),
 		withPosts:  uq.withPosts.Clone(),
@@ -417,7 +417,7 @@ func (uq *UserQuery) loadPosts(ctx context.Context, query *PostQuery, nodes []*U
 		}
 	}
 	query.Where(predicate.Post(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.PostsColumn, fks...))
+		s.Where(sql.InValues(s.C(user.PostsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

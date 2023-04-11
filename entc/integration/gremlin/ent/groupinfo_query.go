@@ -24,7 +24,7 @@ import (
 type GroupInfoQuery struct {
 	config
 	ctx        *QueryContext
-	order      []OrderFunc
+	order      []groupinfo.OrderOption
 	inters     []Interceptor
 	predicates []predicate.GroupInfo
 	withGroups *GroupQuery
@@ -59,7 +59,7 @@ func (giq *GroupInfoQuery) Unique(unique bool) *GroupInfoQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (giq *GroupInfoQuery) Order(o ...OrderFunc) *GroupInfoQuery {
+func (giq *GroupInfoQuery) Order(o ...groupinfo.OrderOption) *GroupInfoQuery {
 	giq.order = append(giq.order, o...)
 	return giq
 }
@@ -267,7 +267,7 @@ func (giq *GroupInfoQuery) Clone() *GroupInfoQuery {
 	return &GroupInfoQuery{
 		config:     giq.config,
 		ctx:        giq.ctx.Clone(),
-		order:      append([]OrderFunc{}, giq.order...),
+		order:      append([]groupinfo.OrderOption{}, giq.order...),
 		inters:     append([]Interceptor{}, giq.inters...),
 		predicates: append([]predicate.GroupInfo{}, giq.predicates...),
 		withGroups: giq.withGroups.Clone(),

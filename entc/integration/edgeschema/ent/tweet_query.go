@@ -28,7 +28,7 @@ import (
 type TweetQuery struct {
 	config
 	ctx            *QueryContext
-	order          []OrderFunc
+	order          []tweet.OrderOption
 	inters         []Interceptor
 	predicates     []predicate.Tweet
 	withLikedUsers *UserQuery
@@ -68,7 +68,7 @@ func (tq *TweetQuery) Unique(unique bool) *TweetQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (tq *TweetQuery) Order(o ...OrderFunc) *TweetQuery {
+func (tq *TweetQuery) Order(o ...tweet.OrderOption) *TweetQuery {
 	tq.order = append(tq.order, o...)
 	return tq
 }
@@ -394,7 +394,7 @@ func (tq *TweetQuery) Clone() *TweetQuery {
 	return &TweetQuery{
 		config:         tq.config,
 		ctx:            tq.ctx.Clone(),
-		order:          append([]OrderFunc{}, tq.order...),
+		order:          append([]tweet.OrderOption{}, tq.order...),
 		inters:         append([]Interceptor{}, tq.inters...),
 		predicates:     append([]predicate.Tweet{}, tq.predicates...),
 		withLikedUsers: tq.withLikedUsers.Clone(),
@@ -819,7 +819,7 @@ func (tq *TweetQuery) loadLikes(ctx context.Context, query *TweetLikeQuery, node
 		}
 	}
 	query.Where(predicate.TweetLike(func(s *sql.Selector) {
-		s.Where(sql.InValues(tweet.LikesColumn, fks...))
+		s.Where(sql.InValues(s.C(tweet.LikesColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -846,7 +846,7 @@ func (tq *TweetQuery) loadTweetUser(ctx context.Context, query *UserTweetQuery, 
 		}
 	}
 	query.Where(predicate.UserTweet(func(s *sql.Selector) {
-		s.Where(sql.InValues(tweet.TweetUserColumn, fks...))
+		s.Where(sql.InValues(s.C(tweet.TweetUserColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -873,7 +873,7 @@ func (tq *TweetQuery) loadTweetTags(ctx context.Context, query *TweetTagQuery, n
 		}
 	}
 	query.Where(predicate.TweetTag(func(s *sql.Selector) {
-		s.Where(sql.InValues(tweet.TweetTagsColumn, fks...))
+		s.Where(sql.InValues(s.C(tweet.TweetTagsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

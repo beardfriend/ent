@@ -9,6 +9,7 @@ package enttask
 import (
 	"time"
 
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
 	"entgo.io/ent/entc/integration/ent/schema/task"
 )
 
@@ -27,6 +28,10 @@ const (
 	FieldName = "name"
 	// FieldOwner holds the string denoting the owner field in the database.
 	FieldOwner = "owner"
+	// FieldOrder holds the string denoting the order field in the database.
+	FieldOrder = "order"
+	// FieldOrderOption holds the string denoting the order_option field in the database.
+	FieldOrderOption = "order_option"
 )
 
 var (
@@ -35,5 +40,8 @@ var (
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
+
+// OrderOption defines the ordering options for the Task queries.
+type OrderOption func(*dsl.Traversal)
 
 // comment from another template.

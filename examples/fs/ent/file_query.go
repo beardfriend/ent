@@ -23,7 +23,7 @@ import (
 type FileQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []file.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.File
 	withParent   *FileQuery
@@ -59,7 +59,7 @@ func (fq *FileQuery) Unique(unique bool) *FileQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (fq *FileQuery) Order(o ...OrderFunc) *FileQuery {
+func (fq *FileQuery) Order(o ...file.OrderOption) *FileQuery {
 	fq.order = append(fq.order, o...)
 	return fq
 }
@@ -297,7 +297,7 @@ func (fq *FileQuery) Clone() *FileQuery {
 	return &FileQuery{
 		config:       fq.config,
 		ctx:          fq.ctx.Clone(),
-		order:        append([]OrderFunc{}, fq.order...),
+		order:        append([]file.OrderOption{}, fq.order...),
 		inters:       append([]Interceptor{}, fq.inters...),
 		predicates:   append([]predicate.File{}, fq.predicates...),
 		withParent:   fq.withParent.Clone(),
@@ -487,7 +487,7 @@ func (fq *FileQuery) loadChildren(ctx context.Context, query *FileQuery, nodes [
 		}
 	}
 	query.Where(predicate.File(func(s *sql.Selector) {
-		s.Where(sql.InValues(file.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(file.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

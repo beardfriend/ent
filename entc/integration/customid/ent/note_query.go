@@ -24,7 +24,7 @@ import (
 type NoteQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []note.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.Note
 	withParent   *NoteQuery
@@ -61,7 +61,7 @@ func (nq *NoteQuery) Unique(unique bool) *NoteQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (nq *NoteQuery) Order(o ...OrderFunc) *NoteQuery {
+func (nq *NoteQuery) Order(o ...note.OrderOption) *NoteQuery {
 	nq.order = append(nq.order, o...)
 	return nq
 }
@@ -299,7 +299,7 @@ func (nq *NoteQuery) Clone() *NoteQuery {
 	return &NoteQuery{
 		config:       nq.config,
 		ctx:          nq.ctx.Clone(),
-		order:        append([]OrderFunc{}, nq.order...),
+		order:        append([]note.OrderOption{}, nq.order...),
 		inters:       append([]Interceptor{}, nq.inters...),
 		predicates:   append([]predicate.Note{}, nq.predicates...),
 		withParent:   nq.withParent.Clone(),
@@ -500,7 +500,7 @@ func (nq *NoteQuery) loadChildren(ctx context.Context, query *NoteQuery, nodes [
 	}
 	query.withFKs = true
 	query.Where(predicate.Note(func(s *sql.Selector) {
-		s.Where(sql.InValues(note.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(note.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

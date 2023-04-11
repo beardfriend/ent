@@ -28,7 +28,7 @@ import (
 type UserQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []user.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.User
 	withPets     *PetQuery
@@ -70,7 +70,7 @@ func (uq *UserQuery) Unique(unique bool) *UserQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
+func (uq *UserQuery) Order(o ...user.OrderOption) *UserQuery {
 	uq.order = append(uq.order, o...)
 	return uq
 }
@@ -440,7 +440,7 @@ func (uq *UserQuery) Clone() *UserQuery {
 	return &UserQuery{
 		config:       uq.config,
 		ctx:          uq.ctx.Clone(),
-		order:        append([]OrderFunc{}, uq.order...),
+		order:        append([]user.OrderOption{}, uq.order...),
 		inters:       append([]Interceptor{}, uq.inters...),
 		predicates:   append([]predicate.User{}, uq.predicates...),
 		withPets:     uq.withPets.Clone(),
@@ -718,7 +718,7 @@ func (uq *UserQuery) loadPets(ctx context.Context, query *PetQuery, nodes []*Use
 		}
 	}
 	query.Where(predicate.Pet(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.PetsColumn, fks...))
+		s.Where(sql.InValues(s.C(user.PetsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -774,7 +774,7 @@ func (uq *UserQuery) loadChildren(ctx context.Context, query *UserQuery, nodes [
 		}
 	}
 	query.Where(predicate.User(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(user.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -827,7 +827,7 @@ func (uq *UserQuery) loadCard(ctx context.Context, query *CardQuery, nodes []*Us
 		nodeids[nodes[i].ID] = nodes[i]
 	}
 	query.Where(predicate.Card(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.CardColumn, fks...))
+		s.Where(sql.InValues(s.C(user.CardColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -851,7 +851,7 @@ func (uq *UserQuery) loadMetadata(ctx context.Context, query *MetadataQuery, nod
 		nodeids[nodes[i].ID] = nodes[i]
 	}
 	query.Where(predicate.Metadata(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.MetadataColumn, fks...))
+		s.Where(sql.InValues(s.C(user.MetadataColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -878,7 +878,7 @@ func (uq *UserQuery) loadInfo(ctx context.Context, query *InfoQuery, nodes []*Us
 		}
 	}
 	query.Where(predicate.Info(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.InfoColumn, fks...))
+		s.Where(sql.InValues(s.C(user.InfoColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
@@ -905,7 +905,7 @@ func (uq *UserQuery) loadRentals(ctx context.Context, query *RentalQuery, nodes 
 		}
 	}
 	query.Where(predicate.Rental(func(s *sql.Selector) {
-		s.Where(sql.InValues(user.RentalsColumn, fks...))
+		s.Where(sql.InValues(s.C(user.RentalsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

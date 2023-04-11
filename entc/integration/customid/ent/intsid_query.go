@@ -24,7 +24,7 @@ import (
 type IntSIDQuery struct {
 	config
 	ctx          *QueryContext
-	order        []OrderFunc
+	order        []intsid.OrderOption
 	inters       []Interceptor
 	predicates   []predicate.IntSID
 	withParent   *IntSIDQuery
@@ -61,7 +61,7 @@ func (isq *IntSIDQuery) Unique(unique bool) *IntSIDQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (isq *IntSIDQuery) Order(o ...OrderFunc) *IntSIDQuery {
+func (isq *IntSIDQuery) Order(o ...intsid.OrderOption) *IntSIDQuery {
 	isq.order = append(isq.order, o...)
 	return isq
 }
@@ -299,7 +299,7 @@ func (isq *IntSIDQuery) Clone() *IntSIDQuery {
 	return &IntSIDQuery{
 		config:       isq.config,
 		ctx:          isq.ctx.Clone(),
-		order:        append([]OrderFunc{}, isq.order...),
+		order:        append([]intsid.OrderOption{}, isq.order...),
 		inters:       append([]Interceptor{}, isq.inters...),
 		predicates:   append([]predicate.IntSID{}, isq.predicates...),
 		withParent:   isq.withParent.Clone(),
@@ -478,7 +478,7 @@ func (isq *IntSIDQuery) loadChildren(ctx context.Context, query *IntSIDQuery, no
 	}
 	query.withFKs = true
 	query.Where(predicate.IntSID(func(s *sql.Selector) {
-		s.Where(sql.InValues(intsid.ChildrenColumn, fks...))
+		s.Where(sql.InValues(s.C(intsid.ChildrenColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

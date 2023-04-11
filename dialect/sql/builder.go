@@ -2249,10 +2249,13 @@ func (s *Selector) AppendSelectExpr(exprs ...Querier) *Selector {
 // AppendSelectExprAs appends additional expressions to the SELECT statement with the given name.
 func (s *Selector) AppendSelectExprAs(expr Querier, as string) *Selector {
 	s.selection = append(s.selection, ExprFunc(func(b *Builder) {
-		b.WriteByte('(')
-		b.Join(expr)
-		b.WriteString(") AS ")
-		b.Ident(as)
+		switch expr.(type) {
+		case *raw:
+			// Raw expressions are not wrapped in parentheses.
+			b.Join(expr).S(" AS ").Ident(as)
+		default:
+			b.S("(").Join(expr).S(") AS ").Ident(as)
+		}
 	}))
 	return s
 }
@@ -2609,6 +2612,10 @@ func (s *Selector) Prefix(queries ...Querier) *Selector {
 
 // C returns a formatted string for a selected column from this statement.
 func (s *Selector) C(column string) string {
+	// Skip formatting qualified columns.
+	if s.isQualified(column) {
+		return column
+	}
 	if s.as != "" {
 		b := &Builder{dialect: s.dialect}
 		b.Ident(s.as)
@@ -3298,8 +3305,9 @@ type exprFunc struct {
 }
 
 func (e *exprFunc) Query() (string, []any) {
-	e.fn(&e.Builder)
-	return e.Builder.Query()
+	b := e.Builder.clone()
+	e.fn(&b)
+	return b.Query()
 }
 
 // Queries are list of queries join with space between them.
@@ -3717,6 +3725,14 @@ func (b *Builder) isIdent(s string) bool {
 	default:
 		return strings.Contains(s, "`")
 	}
+}
+
+// isIdent reports if the given string is a qualified identifier.
+func (b *Builder) isQualified(s string) bool {
+	ident, pg := b.isIdent(s), b.postgres()
+	return !ident && len(s) > 2 && strings.ContainsRune(s[1:len(s)-1], '.') || // <qualifier>.<column>
+		ident && pg && strings.Contains(s, `"."`) || // "qualifier"."column"
+		ident && !pg && strings.Contains(s, "`.`") // `qualifier`.`column`
 }
 
 // state wraps the all methods for setting and getting

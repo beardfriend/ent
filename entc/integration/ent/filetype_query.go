@@ -25,7 +25,7 @@ import (
 type FileTypeQuery struct {
 	config
 	ctx            *QueryContext
-	order          []OrderFunc
+	order          []filetype.OrderOption
 	inters         []Interceptor
 	predicates     []predicate.FileType
 	withFiles      *FileQuery
@@ -62,7 +62,7 @@ func (ftq *FileTypeQuery) Unique(unique bool) *FileTypeQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (ftq *FileTypeQuery) Order(o ...OrderFunc) *FileTypeQuery {
+func (ftq *FileTypeQuery) Order(o ...filetype.OrderOption) *FileTypeQuery {
 	ftq.order = append(ftq.order, o...)
 	return ftq
 }
@@ -278,7 +278,7 @@ func (ftq *FileTypeQuery) Clone() *FileTypeQuery {
 	return &FileTypeQuery{
 		config:     ftq.config,
 		ctx:        ftq.ctx.Clone(),
-		order:      append([]OrderFunc{}, ftq.order...),
+		order:      append([]filetype.OrderOption{}, ftq.order...),
 		inters:     append([]Interceptor{}, ftq.inters...),
 		predicates: append([]predicate.FileType{}, ftq.predicates...),
 		withFiles:  ftq.withFiles.Clone(),
@@ -431,7 +431,7 @@ func (ftq *FileTypeQuery) loadFiles(ctx context.Context, query *FileQuery, nodes
 	}
 	query.withFKs = true
 	query.Where(predicate.File(func(s *sql.Selector) {
-		s.Where(sql.InValues(filetype.FilesColumn, fks...))
+		s.Where(sql.InValues(s.C(filetype.FilesColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

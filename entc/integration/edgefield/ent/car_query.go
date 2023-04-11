@@ -25,7 +25,7 @@ import (
 type CarQuery struct {
 	config
 	ctx         *QueryContext
-	order       []OrderFunc
+	order       []car.OrderOption
 	inters      []Interceptor
 	predicates  []predicate.Car
 	withRentals *RentalQuery
@@ -60,7 +60,7 @@ func (cq *CarQuery) Unique(unique bool) *CarQuery {
 }
 
 // Order specifies how the records should be ordered.
-func (cq *CarQuery) Order(o ...OrderFunc) *CarQuery {
+func (cq *CarQuery) Order(o ...car.OrderOption) *CarQuery {
 	cq.order = append(cq.order, o...)
 	return cq
 }
@@ -276,7 +276,7 @@ func (cq *CarQuery) Clone() *CarQuery {
 	return &CarQuery{
 		config:      cq.config,
 		ctx:         cq.ctx.Clone(),
-		order:       append([]OrderFunc{}, cq.order...),
+		order:       append([]car.OrderOption{}, cq.order...),
 		inters:      append([]Interceptor{}, cq.inters...),
 		predicates:  append([]predicate.Car{}, cq.predicates...),
 		withRentals: cq.withRentals.Clone(),
@@ -418,7 +418,7 @@ func (cq *CarQuery) loadRentals(ctx context.Context, query *RentalQuery, nodes [
 		}
 	}
 	query.Where(predicate.Rental(func(s *sql.Selector) {
-		s.Where(sql.InValues(car.RentalsColumn, fks...))
+		s.Where(sql.InValues(s.C(car.RentalsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

@@ -6,11 +6,18 @@
 
 package api
 
+import (
+	"entgo.io/ent/dialect/gremlin/graph/dsl"
+)
+
 const (
 	// Label holds the string label denoting the api type in the database.
 	Label = "api"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 )
+
+// OrderOption defines the ordering options for the Api queries.
+type OrderOption func(*dsl.Traversal)
 
 // comment from another template.
